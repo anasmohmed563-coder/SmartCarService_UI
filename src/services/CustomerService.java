@@ -18,6 +18,6 @@ public class CustomerService {
 
     // İlk açılışta boş kalmasın diye örnek veri
     static {
-        addCustomer(new Customer("CUST-001", "Ahmet", "Yılmaz", "ahmet@email.com", "555-1234", "İstanbul"));
+        addCustomer(new Customer("CUST-001", "Ahmet", "Yılmaz", "ahmet@email.com", "5414114141", "İstanbul"));
     }
 }

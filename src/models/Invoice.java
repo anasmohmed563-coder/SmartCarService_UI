@@ -27,6 +27,17 @@ public class Invoice implements Serializable {
         private double totalPrice;
 
         public InvoiceLineItem(String description, double unitPrice, int quantity) {
+            // Fatura kalemi doğrulamaları
+            if (description == null || description.trim().isEmpty()) {
+                throw new IllegalArgumentException("Fatura kalemi açıklaması boş bırakılamaz!");
+            }
+            if (unitPrice < 0) {
+                throw new IllegalArgumentException("Birim fiyat sıfırdan küçük olamaz!");
+            }
+            if (quantity <= 0) {
+                throw new IllegalArgumentException("Miktar sıfırdan büyük olmalıdır!");
+            }
+
             this.description = description;
             this.unitPrice = unitPrice;
             this.quantity = quantity;
@@ -41,6 +52,24 @@ public class Invoice implements Serializable {
 
     public Invoice(String invoiceId, String customerId, String vehicleId,
                    String serviceId, int dueDays) {
+
+        // Kimlik (ID) Doğrulamaları
+        if (invoiceId == null || invoiceId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Fatura ID boş olamaz!");
+        }
+        if (customerId == null || customerId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Müşteri ID boş olamaz!");
+        }
+        if (vehicleId == null || vehicleId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Araç ID boş olamaz!");
+        }
+        if (serviceId == null || serviceId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Servis ID boş olamaz!");
+        }
+        if (dueDays < 0) {
+            throw new IllegalArgumentException("Vade günü negatif bir değer olamaz!");
+        }
+
         this.invoiceId = invoiceId;
         this.customerId = customerId;
         this.vehicleId = vehicleId;
@@ -64,6 +93,9 @@ public class Invoice implements Serializable {
     public List<InvoiceLineItem> getLineItems() { return lineItems; }
 
     public void addLineItem(InvoiceLineItem item) {
+        if (item == null) {
+            throw new IllegalArgumentException("Eklenecek fatura kalemi boş (null) olamaz!");
+        }
         this.lineItems.add(item);
         updateTotals();
     }
@@ -72,14 +104,19 @@ public class Invoice implements Serializable {
     public double getTaxAmount() { return taxAmount; }
     public double getTotalAmount() { return totalAmount; }
     public PaymentStatus getPaymentStatus() { return paymentStatus; }
-    public void setPaymentStatus(PaymentStatus paymentStatus) { this.paymentStatus = paymentStatus; }
+    public void setPaymentStatus(PaymentStatus paymentStatus) {
+        if (paymentStatus == null) {
+            throw new IllegalArgumentException("Ödeme durumu boş bırakılamaz!");
+        }
+        this.paymentStatus = paymentStatus;
+    }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
 
     private void updateTotals() {
         this.subtotal = lineItems.stream()
                 .mapToDouble(InvoiceLineItem::getTotalPrice).sum();
-        this.taxAmount = this.subtotal * 0.10;
+        this.taxAmount = this.subtotal * 0.10; // %10 Vergi oranı varsayılmış
         this.totalAmount = this.subtotal + this.taxAmount;
     }
 

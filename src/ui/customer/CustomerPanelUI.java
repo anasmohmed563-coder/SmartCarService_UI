@@ -322,9 +322,19 @@ public class CustomerPanelUI extends JPanel {
         cal.set(year, month, 1);
 
         int firstDayOfWeek = cal.get(Calendar.DAY_OF_WEEK) - 1;
+        // Pazar gününü haftanın ilk günü olmaktan çıkarıp Türk takvimine göre kaydırmak gerekebilir ama mevcut yapıyı koruyorum.
+        if(firstDayOfWeek == 0) firstDayOfWeek = 7;
+
         int daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
 
-        for (int i = 0; i < firstDayOfWeek; i++) {
+        // Bugünü referans almak için takvim oluşturuyoruz (saat, dakika, saniye sıfırlanmış olarak)
+        Calendar todayCal = Calendar.getInstance();
+        todayCal.set(Calendar.HOUR_OF_DAY, 0);
+        todayCal.set(Calendar.MINUTE, 0);
+        todayCal.set(Calendar.SECOND, 0);
+        todayCal.set(Calendar.MILLISECOND, 0);
+
+        for (int i = 1; i < firstDayOfWeek; i++) {
             daysPanel.add(new JLabel());
         }
 
@@ -334,13 +344,25 @@ public class CustomerPanelUI extends JPanel {
             final int currentMonth = month;
 
             JButton dayButton = new JButton(String.valueOf(day));
-            dayButton.addActionListener(e -> {
-                Calendar selectedCal = Calendar.getInstance();
-                selectedCal.set(currentYear, currentMonth, currentDay);
-                selectedDate = selectedCal.getTime();
-                dateDisplayLabel.setText(formatDate(selectedDate));
-                dialog.dispose();
-            });
+
+            // Seçili hücrenin tarihini oluşturuyoruz
+            Calendar selectedCal = Calendar.getInstance();
+            selectedCal.set(currentYear, currentMonth, currentDay);
+            selectedCal.set(Calendar.HOUR_OF_DAY, 0);
+            selectedCal.set(Calendar.MINUTE, 0);
+            selectedCal.set(Calendar.SECOND, 0);
+            selectedCal.set(Calendar.MILLISECOND, 0);
+
+            // GEÇMİŞ TARİH KONTROLÜ
+            if (selectedCal.before(todayCal)) {
+                dayButton.setEnabled(false); // Geçmiş günler tıklanamaz
+            } else {
+                dayButton.addActionListener(e -> {
+                    selectedDate = selectedCal.getTime();
+                    dateDisplayLabel.setText(formatDate(selectedDate));
+                    dialog.dispose();
+                });
+            }
 
             daysPanel.add(dayButton);
         }
@@ -378,11 +400,13 @@ public class CustomerPanelUI extends JPanel {
     }
 
     private void createAppointment() {
+        // 1. Önce temel boşluk kontrollerini yap (validateFields fonksiyonundaki kontroller)
         if (!validateFields()) {
             return;
         }
 
         try {
+            // 2. Arayüzden (UI) verileri çek
             String firstName = firstNameField.getText().trim();
             String lastName = lastNameField.getText().trim();
             String email = emailField.getText().trim();
@@ -396,21 +420,39 @@ public class CustomerPanelUI extends JPanel {
             String date = formatDate(selectedDate);
             String serviceType = (String) serviceTypeCombo.getSelectedItem();
 
+            // ID'leri oluştur
+            String customerId = "CUST-" + System.currentTimeMillis();
+            String vehicleId = "VEH-" + System.currentTimeMillis();
             String appointmentId = "APP-" + System.currentTimeMillis();
 
+            // 3. BACKEND GÜVENLİK DUVARI: Modelleri oluşturmaya çalış [cite: 33, 41]
+            // Eğer telefon 10 hane değilse, ad-soyadda rakam varsa veya tarih geçmişse
+            // burada 'throw new IllegalArgumentException' fırlayacak ve catch bloğuna zıplayacak!
+
+            // Müşteri nesnesini oluştur [cite: 35, 36]
+            Customer newCustomer = new Customer(customerId, firstName, lastName, email, phone, "Adres belirtilmedi");
+
+            // Araç nesnesini oluştur (Vehicle modelindeki kurallarımızı kontrol eder)
+            models.Vehicle newVehicle = new models.Vehicle(vehicleId, customerId, make, model, year, plate, "Bilinmiyor", 0);
+
+            // Servis nesnesini oluştur (Tarih ve servis tipi kontrolünü yapar)
+            models.Service newService = new models.Service(appointmentId, vehicleId, customerId, serviceType, date, "Randevu Oluşturuldu", 0);
+
+            // 4. EĞER BURAYA KADAR GELDİYSEK HATA YOKTUR: Şimdi tabloya ekleyebiliriz [cite: 25]
             Object[] rowData = new Object[]{
                     appointmentId, firstName, lastName, email, phone,
                     make, model, year, plate, date, serviceType, "Beklemede"
             };
 
+            // Tabloyu güncelle [cite: 21, 25]
             tableModel.addRow(rowData);
+
+            // Servislere veriyi ilet [cite: 12, 69]
             AppointmentService.addAppointment(rowData);
             appointments.put(appointmentId, firstName + " " + lastName + " - " + make + " " + model + " - " + serviceType);
-
-            String customerId = "CUST-" + System.currentTimeMillis();
-            Customer newCustomer = new Customer(customerId, firstName, lastName, email, phone, "Adres belirtilmedi");
             CustomerService.addCustomer(newCustomer);
 
+            // 5. BAŞARI BİLDİRİMİ [cite: 31, 50]
             JOptionPane.showMessageDialog(this,
                     "Randevu başarıyla oluşturuldu!\n\n" +
                             "Randevu ID: " + appointmentId + "\n" +
@@ -422,11 +464,13 @@ public class CustomerPanelUI extends JPanel {
                     LanguageManager.getString("status.success"),
                     JOptionPane.INFORMATION_MESSAGE);
 
+            // Ekranı temizle
             clearFields();
 
         } catch (Exception e) {
+            // Modellerden birinde hata olursa bu pop-up çalışır ve tabloya veri eklenmez [cite: 31, 50]
             JOptionPane.showMessageDialog(this,
-                    LanguageManager.getString("status.error") + ": " + e.getMessage(),
+                    "Hata: " + e.getMessage(),
                     LanguageManager.getString("status.error"),
                     JOptionPane.ERROR_MESSAGE);
         }
