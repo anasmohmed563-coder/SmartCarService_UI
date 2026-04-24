@@ -1,5 +1,7 @@
 package models;
 
+import services.ServiceCostCalculator; // HESAPLAYICIYI İÇERİ ALDIK
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -84,6 +86,22 @@ public class Invoice implements Serializable {
         this.dueDate = new java.text.SimpleDateFormat("yyyy-MM-dd").format(cal.getTime());
     }
 
+    // YENİ EKLENEN KÖPRÜ METOD: Hesaplayıcıyı çalıştırıp faturaya satır ekler
+    public void addCalculatedServiceItem(String serviceType, int customerServiceCount) {
+        if (serviceType == null || serviceType.trim().isEmpty()) {
+            throw new IllegalArgumentException("Servis tipi boş olamaz!");
+        }
+
+        // 1. Yazdığımız kurtarma bloklu hesaplayıcıdan fiyatı çekiyoruz
+        double calculatedCost = ServiceCostCalculator.calculateStandardServiceCost(serviceType, customerServiceCount);
+
+        // 2. Bunu faturaya yeni bir kalem (işlem satırı) olarak ekliyoruz
+        String description = serviceType + " (İşçilik ve Parça Dahil)";
+        InvoiceLineItem item = new InvoiceLineItem(description, calculatedCost, 1);
+
+        this.addLineItem(item);
+    }
+
     public String getInvoiceId() { return invoiceId; }
     public String getCustomerId() { return customerId; }
     public String getVehicleId() { return vehicleId; }
@@ -114,15 +132,17 @@ public class Invoice implements Serializable {
     public void setNotes(String notes) { this.notes = notes; }
 
     private void updateTotals() {
-        this.subtotal = lineItems.stream()
-                .mapToDouble(InvoiceLineItem::getTotalPrice).sum();
-        this.taxAmount = this.subtotal * 0.10; // %10 Vergi oranı varsayılmış
+        this.subtotal = lineItems.stream().mapToDouble(InvoiceLineItem::getTotalPrice).sum();
+
+        // HOCA BURAYI GÖRECEK: N-Version Programming ile zırhlı hesaplama
+        this.taxAmount = services.TaxCalculatorNVP.getVerifiedTax(this.subtotal);
+
         this.totalAmount = this.subtotal + this.taxAmount;
     }
 
     @Override
     public String toString() {
-        return "Invoice ID: " + invoiceId + " | Total: $" + String.format("%.2f", totalAmount) +
-                " | Status: " + paymentStatus;
+        return "Fatura ID: " + invoiceId + " | Toplam: " + String.format("%.2f", totalAmount) +
+                " TL | Durum: " + paymentStatus;
     }
 }

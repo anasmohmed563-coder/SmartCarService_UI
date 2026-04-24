@@ -20,4 +20,12 @@ public class CustomerService {
     static {
         addCustomer(new Customer("CUST-001", "Ahmet", "Yılmaz", "ahmet@email.com", "5414114141", "İstanbul"));
     }
+    // YENİ: Müşteriyi ID'sine göre bulup siler
+    public static boolean deleteCustomer(String customerId) {
+        if (getAllCustomers().containsKey(customerId)) {
+            getAllCustomers().remove(customerId);
+            return true;
+        }
+        return false;
+    }
 }

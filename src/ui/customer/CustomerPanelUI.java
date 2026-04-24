@@ -18,6 +18,7 @@ public class CustomerPanelUI extends JPanel {
 
     private JLabel dateDisplayLabel;
     private JButton datePickerButton;
+    private JLabel capacityLabel;
     private Date selectedDate;
     private JComboBox<String> serviceTypeCombo;
     private JButton addButton, clearButton;
@@ -144,15 +145,28 @@ public class CustomerPanelUI extends JPanel {
         datePickerButton.addActionListener(e -> openDatePicker());
         datePanel.add(datePickerButton);
 
+        capacityLabel = new JLabel(" Servis Seçiniz");
+        capacityLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        capacityLabel.setForeground(Color.GRAY);
+        datePanel.add(capacityLabel);
+
         panel.add(datePanel);
 
         serviceTypeLabel = new JLabel();
         panel.add(serviceTypeLabel);
-        serviceTypeCombo = new JComboBox<>(new String[]{
+
+        serviceTypeCombo = new JComboBox<>();
+        serviceTypeCombo.addItem("-- Servis Tipi Seçiniz --");
+        String[] services = {
                 "Oil Change", "Engine Repair", "Transmission Repair",
                 "Brake Service", "Tire Replacement", "Battery Replacement",
                 "General Maintenance", "Inspection"
-        });
+        };
+        for (String s : services) {
+            serviceTypeCombo.addItem(s);
+        }
+        // YENİ EKLENDİ: Servis tipi değiştiğinde doluluk sayısını günceller!
+        serviceTypeCombo.addActionListener(e -> updateCapacityUI());
         panel.add(serviceTypeCombo);
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
@@ -168,6 +182,8 @@ public class CustomerPanelUI extends JPanel {
         buttonPanel.add(clearButton);
 
         panel.add(buttonPanel);
+
+        updateCapacityUI();
 
         return panel;
     }
@@ -190,7 +206,6 @@ public class CustomerPanelUI extends JPanel {
         clearButton.setText(LanguageManager.getString("customer.button.clear"));
         bottomPanel.setBorder(BorderFactory.createTitledBorder(LanguageManager.getString("customer.table.title")));
 
-        // TABLO BAŞLIKLARINI GÜNCELLEME KISMI
         if (tableModel != null) {
             tableModel.setColumnIdentifiers(new String[]{
                     LanguageManager.getString("table.appId"),
@@ -208,7 +223,6 @@ public class CustomerPanelUI extends JPanel {
             });
         }
 
-        // COMBOBOX İÇİNDEKİ SEÇİM YAZILARINI GÜNCELLEME
         if (makeCombo.getItemCount() > 0) {
             String currentSelection = (String) makeCombo.getSelectedItem();
             makeCombo.removeItemAt(0);
@@ -230,6 +244,15 @@ public class CustomerPanelUI extends JPanel {
             yearCombo.insertItemAt(LanguageManager.getString("customer.year.select"), 0);
             if (currentSelection.equals("-- Yıl Seç --") || currentSelection.equals("-- Select Year --")) {
                 yearCombo.setSelectedIndex(0);
+            }
+        }
+
+        if (serviceTypeCombo.getItemCount() > 0) {
+            String currentSelection = (String) serviceTypeCombo.getSelectedItem();
+            serviceTypeCombo.removeItemAt(0);
+            serviceTypeCombo.insertItemAt("-- Servis Tipi Seçiniz --", 0);
+            if (currentSelection.equals("-- Servis Tipi Seçiniz --")) {
+                serviceTypeCombo.setSelectedIndex(0);
             }
         }
     }
@@ -322,12 +345,10 @@ public class CustomerPanelUI extends JPanel {
         cal.set(year, month, 1);
 
         int firstDayOfWeek = cal.get(Calendar.DAY_OF_WEEK) - 1;
-        // Pazar gününü haftanın ilk günü olmaktan çıkarıp Türk takvimine göre kaydırmak gerekebilir ama mevcut yapıyı koruyorum.
         if(firstDayOfWeek == 0) firstDayOfWeek = 7;
 
         int daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
 
-        // Bugünü referans almak için takvim oluşturuyoruz (saat, dakika, saniye sıfırlanmış olarak)
         Calendar todayCal = Calendar.getInstance();
         todayCal.set(Calendar.HOUR_OF_DAY, 0);
         todayCal.set(Calendar.MINUTE, 0);
@@ -345,7 +366,6 @@ public class CustomerPanelUI extends JPanel {
 
             JButton dayButton = new JButton(String.valueOf(day));
 
-            // Seçili hücrenin tarihini oluşturuyoruz
             Calendar selectedCal = Calendar.getInstance();
             selectedCal.set(currentYear, currentMonth, currentDay);
             selectedCal.set(Calendar.HOUR_OF_DAY, 0);
@@ -353,13 +373,13 @@ public class CustomerPanelUI extends JPanel {
             selectedCal.set(Calendar.SECOND, 0);
             selectedCal.set(Calendar.MILLISECOND, 0);
 
-            // GEÇMİŞ TARİH KONTROLÜ
             if (selectedCal.before(todayCal)) {
-                dayButton.setEnabled(false); // Geçmiş günler tıklanamaz
+                dayButton.setEnabled(false);
             } else {
                 dayButton.addActionListener(e -> {
                     selectedDate = selectedCal.getTime();
                     dateDisplayLabel.setText(formatDate(selectedDate));
+                    updateCapacityUI();
                     dialog.dispose();
                 });
             }
@@ -380,7 +400,6 @@ public class CustomerPanelUI extends JPanel {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setPreferredSize(new Dimension(0, 200));
 
-        // Başlıklar updateTexts içinden dinamik çekiliyor artık
         String[] columns = {"ID", "Ad", "Soyad", "Email", "Telefon", "Marka", "Model", "Yıl", "Plaka", "Tarih", "Servis", "Durum"};
 
         tableModel = new DefaultTableModel(columns, 0) {
@@ -399,14 +418,45 @@ public class CustomerPanelUI extends JPanel {
         return panel;
     }
 
+    // YENİ: Hem tarihi hem de servisi kontrol eden güncellenmiş metot
+    private void updateCapacityUI() {
+        if (capacityLabel == null || addButton == null || serviceTypeCombo == null) return;
+
+        String dateStr = formatDate(selectedDate);
+        String serviceType = (String) serviceTypeCombo.getSelectedItem();
+
+        // Eğer servis henüz seçilmemişse ekranda uyarı ver ama butonu kilitleme (Validation yakalar)
+        if (serviceType == null || serviceType.startsWith("--")) {
+            capacityLabel.setText(" Servis Tipi Seçin");
+            capacityLabel.setForeground(Color.GRAY);
+            addButton.setEnabled(true);
+            addButton.setToolTipText(null);
+            return;
+        }
+
+        // Seçilen tarih ve atölyenin doluluğunu sorgula
+        int count = AppointmentService.getAppointmentCount(dateStr, serviceType);
+
+        // Örn: "[Oil Change] Doluluk: 3/5" yazar
+        capacityLabel.setText(" [" + serviceType + "] Doluluk: " + count + "/5");
+
+        if (count >= 5) {
+            capacityLabel.setForeground(Color.RED);
+            addButton.setEnabled(false);
+            addButton.setToolTipText("Bu tarih için " + serviceType + " atölyesi dolmuştur.");
+        } else {
+            capacityLabel.setForeground(new Color(0, 153, 0));
+            addButton.setEnabled(true);
+            addButton.setToolTipText(null);
+        }
+    }
+
     private void createAppointment() {
-        // 1. Önce temel boşluk kontrollerini yap (validateFields fonksiyonundaki kontroller)
         if (!validateFields()) {
             return;
         }
 
         try {
-            // 2. Arayüzden (UI) verileri çek
             String firstName = firstNameField.getText().trim();
             String lastName = lastNameField.getText().trim();
             String email = emailField.getText().trim();
@@ -420,39 +470,27 @@ public class CustomerPanelUI extends JPanel {
             String date = formatDate(selectedDate);
             String serviceType = (String) serviceTypeCombo.getSelectedItem();
 
-            // ID'leri oluştur
             String customerId = "CUST-" + System.currentTimeMillis();
             String vehicleId = "VEH-" + System.currentTimeMillis();
             String appointmentId = "APP-" + System.currentTimeMillis();
 
-            // 3. BACKEND GÜVENLİK DUVARI: Modelleri oluşturmaya çalış [cite: 33, 41]
-            // Eğer telefon 10 hane değilse, ad-soyadda rakam varsa veya tarih geçmişse
-            // burada 'throw new IllegalArgumentException' fırlayacak ve catch bloğuna zıplayacak!
-
-            // Müşteri nesnesini oluştur [cite: 35, 36]
             Customer newCustomer = new Customer(customerId, firstName, lastName, email, phone, "Adres belirtilmedi");
-
-            // Araç nesnesini oluştur (Vehicle modelindeki kurallarımızı kontrol eder)
             models.Vehicle newVehicle = new models.Vehicle(vehicleId, customerId, make, model, year, plate, "Bilinmiyor", 0);
-
-            // Servis nesnesini oluştur (Tarih ve servis tipi kontrolünü yapar)
             models.Service newService = new models.Service(appointmentId, vehicleId, customerId, serviceType, date, "Randevu Oluşturuldu", 0);
 
-            // 4. EĞER BURAYA KADAR GELDİYSEK HATA YOKTUR: Şimdi tabloya ekleyebiliriz [cite: 25]
             Object[] rowData = new Object[]{
                     appointmentId, firstName, lastName, email, phone,
                     make, model, year, plate, date, serviceType, "Beklemede"
             };
 
-            // Tabloyu güncelle [cite: 21, 25]
-            tableModel.addRow(rowData);
-
-            // Servislere veriyi ilet [cite: 12, 69]
+            // Önce Backend'e kaydet (Eğer kapasite 5/5 olmuşsa burada hata fırlatır, tabloya inmez)
             AppointmentService.addAppointment(rowData);
+
+            // Backend onaylarsa tabloyu güncelle
+            tableModel.addRow(rowData);
             appointments.put(appointmentId, firstName + " " + lastName + " - " + make + " " + model + " - " + serviceType);
             CustomerService.addCustomer(newCustomer);
 
-            // 5. BAŞARI BİLDİRİMİ [cite: 31, 50]
             JOptionPane.showMessageDialog(this,
                     "Randevu başarıyla oluşturuldu!\n\n" +
                             "Randevu ID: " + appointmentId + "\n" +
@@ -464,11 +502,9 @@ public class CustomerPanelUI extends JPanel {
                     LanguageManager.getString("status.success"),
                     JOptionPane.INFORMATION_MESSAGE);
 
-            // Ekranı temizle
             clearFields();
 
         } catch (Exception e) {
-            // Modellerden birinde hata olursa bu pop-up çalışır ve tabloya veri eklenmez [cite: 31, 50]
             JOptionPane.showMessageDialog(this,
                     "Hata: " + e.getMessage(),
                     LanguageManager.getString("status.error"),
@@ -508,6 +544,12 @@ public class CustomerPanelUI extends JPanel {
             return false;
         }
 
+        if (serviceTypeCombo.getSelectedIndex() <= 0) {
+            JOptionPane.showMessageDialog(this, "Lütfen bir Servis Tipi seçiniz!",
+                    LanguageManager.getString("status.warning"), JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+
         if (!email.contains("@")) {
             JOptionPane.showMessageDialog(this, "Geçerli bir email adresi girin!",
                     LanguageManager.getString("status.warning"), JOptionPane.WARNING_MESSAGE);
@@ -534,6 +576,9 @@ public class CustomerPanelUI extends JPanel {
 
         selectedDate = new Date();
         dateDisplayLabel.setText(formatDate(selectedDate));
+
         serviceTypeCombo.setSelectedIndex(0);
+
+        updateCapacityUI();
     }
 }
